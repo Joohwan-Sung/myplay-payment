@@ -1,0 +1,133 @@
+1. 카프카, 주키퍼 설치 (로컬)
+
+http://msaschool.io/operation/implementation/implementation-seven/
+
+2. pom.xml 파일 수정
+	<properties>
+		<java.version>11</java.version>
+		<spring-cloud.version>2020.0.3</spring-cloud.version>
+	</properties>
+	
+	<!-- kafka streams -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-stream-kafka</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+3. application.yml 파일 수정
+destination ==> topic 인 myplay 로 설정함
+---
+spring:
+  cloud:
+    stream:
+      kafka:
+        binder:
+          brokers: localhost:9092
+        streams:
+          binder:
+            configuration:
+              default:
+                key:
+                  serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+                value:
+                  serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+      bindings:
+        event-in:
+          group: myplay-payment
+          destination: myplay
+          contentType: application/json
+        event-out:
+          destination: myplay
+          contentType: application/json
+
+4. 클래스, 인터페이스 추가
+
+PolicyHandler 내용 그대로 추가 (repository 접근 필요 시 서비스별 설정)
+app.config.kafka 패키지 > KafkaProcessor 그대로 추가
+Payment 엔티티에서 이벤트 만드는 부분 onPostPersist 등 추가
+event 패키지 > AbstractEvent 그대로추가 , PayApproved (발행할 이벤트)
+...Application.java 파일 수정 (applicationContext 설정)
+
+5. 실행 명령어
+
+1) 주키퍼 실행
+cd kafka 설치 경로/bin/windows
+
+zookeeper-server-start.bat ../../config/zookeeper.properties
+
+2) 카프카 실행
+cd kafka 설치 경로/bin/windows
+
+kafka-server-start.bat ../../config/server.properties
+
+3) 이벤트 모니터링 창
+cd kafka 설치 경로/bin/windows
+
+kafka-console-consumer.bat --bootstrap-server http://localhost:9092 --topic myplay --from-beginning
+
+4) 이벤트 발행
+local 에서 get, post method 호출하여 이벤트 실행하면 모니터링 창에 이벤트 로그 출력됨
+
+-kafka 잘 안될시 : C드라이브 tmp 폴더 kafka, zookeeper 로그 폴더 다 날리고 다시 실행.
+
+6. 서버 테스트
+
+pom.xml 아래에 서버 설정 추가하기
+
+---
+spring:
+  profiles: docker
+  cloud:
+    stream:
+      kafka:
+        binder:
+          brokers: factory-zdb-mpgstream-kafka-0.factory-zdb-mpgstream-kafka-headless.factory-zdb.svc.cluster.local:9092
+        streams:
+          binder:
+            configuration:
+              default:
+                key:
+                  serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+                value:
+                  serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+      bindings:
+        event-in:
+          group: myplay-payment
+          destination: myplay
+          contentType: application/json
+        event-out:
+          destination: myplay
+          contentType: application/json
+		  
+
+- payment 서비스 조회 후 포트 포워드
+kubectl get service -n myplay 
+
+- 포트 포워드 
+kubectl port-forward service/myplay-payment-app-dev 18080:8080 -n myplay
+
+- swagger 접속해서 method 호출 수행
+localhost:18080/swagger-ui.html
+
+- 토픽 리스트 확인
+kubectl -n factory-zdb exec -it pod/factory-zdb-mpgstream-kafka-0 -c kafka -- bash -c "unset JMX_PORT;/opt/bitnami/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092"
+
+- 이벤트 모니터링 (모니터링 용 콘솔 새창에서 확인)
+kubectl -n factory-zdb exec -it pod/factory-zdb-mpgstream-kafka-0 -c kafka -- bash -c "unset JMX_PORT;/opt/bitnami/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic myplay --from-beginning"
+

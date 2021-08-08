@@ -1,0 +1,82 @@
+server:
+  port: 8080
+---
+
+spring:
+  application:
+    name: myplay-payment
+#  profiles:
+#    active: default
+  datasource:
+    url: jdbc:mysql://localhost:3306/test
+    username: root
+    password: admin
+    driver-class-name: org.mariadb.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+server:
+  port: 8085
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+
+---
+spring:
+  cloud:
+    stream:
+      kafka:
+        binder:
+          brokers: localhost:9092
+        streams:
+          binder:
+            configuration:
+              default:
+                key:
+                  serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+                value:
+                  serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+      bindings:
+        event-in:
+          group: myplay-payment
+          destination: myplay
+          contentType: application/json
+        event-out:
+          destination: myplay
+          contentType: application/json
+          
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  cloud:
+    stream:
+      kafka:
+        binder:
+          brokers: factory-zdb-mpgstream-kafka-0.factory-zdb-mpgstream-kafka-headless.factory-zdb.svc.cluster.local:9092
+        streams:
+          binder:
+            configuration:
+              default:
+                key:
+                  serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+                value:
+                  serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+      bindings:
+        event-in:
+          group: myplay-payment
+          destination: myplay
+          contentType: application/json
+        event-out:
+          destination: myplay
+          contentType: application/json
